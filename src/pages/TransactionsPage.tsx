@@ -1,28 +1,39 @@
 import React, { useState } from 'react';
-import { useStore, PaymentStatus, PaymentMethod } from '../context/StoreContext';
-import { Search, Filter, ArrowUpRight, ArrowDownLeft, CreditCard, Wallet, Banknote, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { useStore } from '../context/StoreContext';
+import { Search, Filter, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, X, FileText, Calendar, DollarSign, Receipt, Percent, User } from 'lucide-react';
 import { clsx } from 'clsx';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function TransactionsPage() {
   const { orders } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<PaymentStatus | 'All'>('All');
-  const [methodFilter, setMethodFilter] = useState<PaymentMethod | 'All'>('All');
+  const [payoutTab, setPayoutTab] = useState<'Pending' | 'Completed'>('Pending');
   const [dateFilter, setDateFilter] = useState<'All' | 'Today' | 'Week' | 'Month' | 'Custom'>('All');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  // Filter orders to get transactions
-  // Assuming every order is a transaction for simplicity, or we could filter by those with payment attempts
-  const transactions = orders.map(order => ({
-    id: `txn-${order.id.split('-')[1]}`, // Mock transaction ID derived from order ID
-    orderId: order.id,
-    customerName: order.customerName,
-    amount: order.totalAmount,
-    status: order.paymentStatus,
-    method: order.paymentMethod,
-    date: order.createdAt,
-  })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Filter orders to get payouts (only paid orders)
+  const payouts = orders
+    .filter(order => order.paymentStatus === 'Paid')
+    .map(order => {
+      const commissionRate = 0.10; // 10% commission
+      const commission = order.totalAmount * commissionRate;
+      const netPayout = order.totalAmount - commission;
+      const isCompleted = order.payoutStatus === 'Completed';
+      return {
+        id: isCompleted ? `pay-${order.id.split('-')[1]}` : null,
+        orderId: order.id,
+        customerName: order.customerName,
+        totalAmount: order.totalAmount,
+        commission,
+        netPayout,
+        status: order.payoutStatus || 'Pending',
+        orderDate: order.createdAt,
+        settlementDate: isCompleted ? order.createdAt : null, // Mock settlement date
+      };
+    })
+    .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
   const isDateInFilter = (dateString: string) => {
     const date = new Date(dateString);
@@ -51,42 +62,34 @@ export default function TransactionsPage() {
     }
   };
 
-  const filteredTransactions = transactions.filter(txn => {
+  const filteredPayouts = payouts.filter(payout => {
     const matchesSearch = 
-      txn.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      txn.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      txn.customerName.toLowerCase().includes(searchTerm.toLowerCase());
+      (payout.id && payout.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      payout.orderId.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'All' || txn.status === statusFilter;
-    const matchesMethod = methodFilter === 'All' || txn.method === methodFilter;
-    const matchesDate = isDateInFilter(txn.date);
+    const matchesTab = payout.status === payoutTab;
+    const matchesDate = isDateInFilter(payout.orderDate);
 
-    return matchesSearch && matchesStatus && matchesMethod && matchesDate;
+    return matchesSearch && matchesTab && matchesDate;
   });
 
-  const totalRevenue = filteredTransactions
-    .filter(t => t.status === 'Paid')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalCompletedPayouts = payouts
+    .filter(p => p.status === 'Completed')
+    .reduce((sum, p) => sum + p.netPayout, 0);
 
-  const pendingAmount = filteredTransactions
-    .filter(t => t.status === 'Pending')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalPendingPayouts = payouts
+    .filter(p => p.status === 'Pending')
+    .reduce((sum, p) => sum + p.netPayout, 0);
 
-  const getMethodIcon = (method: PaymentMethod) => {
-    switch (method) {
-      case 'Card': return <CreditCard className="h-4 w-4" />;
-      case 'Online': return <Wallet className="h-4 w-4" />;
-      case 'Cash': 
-      case 'COD': return <Banknote className="h-4 w-4" />;
-      default: return <Banknote className="h-4 w-4" />;
-    }
-  };
+  const totalCommissionPaid = payouts
+    .filter(p => p.status === 'Completed')
+    .reduce((sum, p) => sum + p.commission, 0);
 
-  const getStatusIcon = (status: PaymentStatus) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Paid': return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'Completed': return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'Pending': return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'Failed': return <XCircle className="h-4 w-4 text-red-500" />;
+      default: return <Clock className="h-4 w-4 text-gray-500" />;
     }
   };
 
@@ -116,12 +119,15 @@ export default function TransactionsPage() {
     }
   };
 
+  const selectedOrder = orders.find(o => o.id === selectedOrderId);
+  const selectedPayout = payouts.find(p => p.orderId === selectedOrderId);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-[#0a192f]">Transactions</h1>
-          <p className="text-gray-500 mt-1">Monitor payments and financial history</p>
+          <h1 className="text-3xl font-serif font-bold text-[#0a192f]">Payouts</h1>
+          <p className="text-gray-500 mt-1">Manage settlements from superadmin</p>
         </div>
 
         <div className="flex flex-col items-end gap-2">
@@ -169,8 +175,8 @@ export default function TransactionsPage() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-gray-500">Total Revenue</p>
-              <h3 className="text-2xl font-bold text-[#0a192f] mt-1">${totalRevenue.toFixed(2)}</h3>
+              <p className="text-sm font-medium text-gray-500">Total Settled</p>
+              <h3 className="text-2xl font-bold text-[#0a192f] mt-1">${totalCompletedPayouts.toFixed(2)}</h3>
             </div>
             <div className="p-2 bg-green-50 rounded-lg">
               <ArrowUpRight className="h-5 w-5 text-green-600" />
@@ -181,8 +187,8 @@ export default function TransactionsPage() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-gray-500">Pending Payments</p>
-              <h3 className="text-2xl font-bold text-[#0a192f] mt-1">${pendingAmount.toFixed(2)}</h3>
+              <p className="text-sm font-medium text-gray-500">Pending Settlement</p>
+              <h3 className="text-2xl font-bold text-[#0a192f] mt-1">${totalPendingPayouts.toFixed(2)}</h3>
             </div>
             <div className="p-2 bg-yellow-50 rounded-lg">
               <Clock className="h-5 w-5 text-yellow-600" />
@@ -193,14 +199,40 @@ export default function TransactionsPage() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-gray-500">Total Transactions</p>
-              <h3 className="text-2xl font-bold text-[#0a192f] mt-1">{filteredTransactions.length}</h3>
+              <p className="text-sm font-medium text-gray-500">Total Commission Paid</p>
+              <h3 className="text-2xl font-bold text-[#0a192f] mt-1">${totalCommissionPaid.toFixed(2)}</h3>
             </div>
             <div className="p-2 bg-blue-50 rounded-lg">
-              <ArrowDownLeft className="h-5 w-5 text-blue-600" />
+              <Percent className="h-5 w-5 text-blue-600" />
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex space-x-1 bg-gray-100/50 p-1 rounded-xl w-fit border border-gray-200">
+        <button
+          onClick={() => setPayoutTab('Pending')}
+          className={clsx(
+            "px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+            payoutTab === 'Pending'
+              ? "bg-white text-[#0a192f] shadow-sm ring-1 ring-gray-200/50"
+              : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
+          )}
+        >
+          Pending Payouts
+        </button>
+        <button
+          onClick={() => setPayoutTab('Completed')}
+          className={clsx(
+            "px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+            payoutTab === 'Completed'
+              ? "bg-white text-[#0a192f] shadow-sm ring-1 ring-gray-200/50"
+              : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
+          )}
+        >
+          Completed Payouts
+        </button>
       </div>
 
       {/* Filters and Search */}
@@ -209,93 +241,70 @@ export default function TransactionsPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by Transaction ID, Order ID, or Customer..."
+            placeholder="Search by Payout ID or Order ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#c5a059] focus:border-transparent outline-none text-sm"
           />
         </div>
-        
-        <div className="flex gap-3 w-full md:w-auto overflow-x-auto">
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as PaymentStatus | 'All')}
-              className="appearance-none bg-gray-50 border border-gray-200 text-gray-700 py-2 pl-4 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c5a059]"
-            >
-              <option value="All">All Status</option>
-              <option value="Paid">Paid</option>
-              <option value="Pending">Pending</option>
-              <option value="Failed">Failed</option>
-            </select>
-            <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          </div>
-
-          <div className="relative">
-            <select
-              value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value as PaymentMethod | 'All')}
-              className="appearance-none bg-gray-50 border border-gray-200 text-gray-700 py-2 pl-4 pr-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c5a059]"
-            >
-              <option value="All">All Methods</option>
-              <option value="Card">Card</option>
-              <option value="Online">Online</option>
-              <option value="Cash">Cash</option>
-              <option value="COD">COD</option>
-            </select>
-            <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
       </div>
 
-      {/* Transactions Table */}
+      {/* Payouts Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-medium border-b border-gray-100">
               <tr>
-                <th className="px-6 py-4">Transaction ID</th>
+                {payoutTab === 'Completed' && <th className="px-6 py-4">Payout ID</th>}
                 <th className="px-6 py-4">Order ID</th>
-                <th className="px-6 py-4">Date & Time</th>
-                <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Method</th>
+                <th className="px-6 py-4">Order Date</th>
+                {payoutTab === 'Completed' && <th className="px-6 py-4">Settlement Date</th>}
+                <th className="px-6 py-4">Order Total</th>
+                <th className="px-6 py-4">Commission (10%)</th>
+                <th className="px-6 py-4">Net Payout</th>
                 <th className="px-6 py-4">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((txn) => (
-                  <tr key={txn.id} className="hover:bg-gray-50 transition-colors group">
-                    <td className="px-6 py-4 font-mono text-sm font-medium text-gray-600">
-                      {txn.id}
-                    </td>
+              {filteredPayouts.length > 0 ? (
+                filteredPayouts.map((payout) => (
+                  <tr 
+                    key={payout.orderId} 
+                    className="hover:bg-gray-50 transition-colors group cursor-pointer"
+                    onClick={() => setSelectedOrderId(payout.orderId)}
+                  >
+                    {payoutTab === 'Completed' && (
+                      <td className="px-6 py-4 font-mono text-sm font-medium text-gray-600">
+                        {payout.id}
+                      </td>
+                    )}
                     <td className="px-6 py-4 font-mono text-sm text-[#0a192f]">
-                      #{txn.orderId.slice(-6)}
+                      #{payout.orderId.slice(-6)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(txn.date).toLocaleString()}
+                      {new Date(payout.orderDate).toLocaleString()}
                     </td>
+                    {payoutTab === 'Completed' && (
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {new Date(payout.settlementDate!).toLocaleString()}
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {txn.customerName}
+                      ${payout.totalAmount.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-red-500">
+                      -${payout.commission.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 text-sm font-bold text-[#c5a059]">
-                      ${txn.amount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <span className="mr-2 text-gray-400">{getMethodIcon(txn.method)}</span>
-                        {txn.method}
-                      </div>
+                      ${payout.netPayout.toFixed(2)}
                     </td>
                     <td className="px-6 py-4">
                       <span className={clsx(
                         "px-3 py-1 rounded-full text-xs font-bold flex items-center w-fit",
-                        txn.status === 'Paid' ? "bg-green-100 text-green-800" :
-                        txn.status === 'Pending' ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"
+                        payout.status === 'Completed' ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
                       )}>
-                        <span className="mr-1.5">{getStatusIcon(txn.status)}</span>
-                        {txn.status}
+                        <span className="mr-1.5">{getStatusIcon(payout.status)}</span>
+                        {payout.status}
                       </span>
                     </td>
                   </tr>
@@ -303,7 +312,7 @@ export default function TransactionsPage() {
               ) : (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    No transactions found matching your criteria.
+                    No payouts found matching your criteria.
                   </td>
                 </tr>
               )}
@@ -311,6 +320,152 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+
+      {/* Transaction Detail Modal */}
+      <AnimatePresence>
+        {selectedOrder && selectedPayout && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="bg-[#0a192f] px-6 py-4 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/10 rounded-lg">
+                    <Receipt className="h-5 w-5 text-[#c5a059]" />
+                  </div>
+                  <div>
+                    <h2 className="text-white font-serif text-xl font-bold">
+                      Payout Details
+                    </h2>
+                    <p className="text-white/70 text-sm mt-0.5 font-mono">
+                      {selectedPayout.id ? selectedPayout.id : `Order #${selectedPayout.orderId.slice(-6)}`}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedOrderId(null)}
+                  className="text-white/70 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto flex-1 bg-gray-50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* Customer Details */}
+                  <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                      <User className="h-4 w-4 text-[#c5a059]" />
+                      Customer Information
+                    </h3>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Name</p>
+                        <p className="text-sm font-medium text-gray-900 mt-0.5">{selectedOrder.customerName}</p>
+                      </div>
+                      {selectedOrder.customerEmail && (
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Email</p>
+                          <p className="text-sm text-gray-700 mt-0.5">{selectedOrder.customerEmail}</p>
+                        </div>
+                      )}
+                      {selectedOrder.customerPhone && (
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Phone</p>
+                          <p className="text-sm text-gray-700 mt-0.5">{selectedOrder.customerPhone}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payout Details */}
+                  <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm space-y-4">
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                      <DollarSign className="h-4 w-4 text-[#c5a059]" />
+                      Payout Breakdown
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Order Total</p>
+                        <p className="text-sm font-medium text-gray-900">${selectedPayout.totalAmount.toFixed(2)}</p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Commission (10%)</p>
+                        <p className="text-sm font-medium text-red-500">-${selectedPayout.commission.toFixed(2)}</p>
+                      </div>
+                      <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider font-bold">Net Payout</p>
+                        <p className="text-lg font-bold text-[#c5a059]">${selectedPayout.netPayout.toFixed(2)}</p>
+                      </div>
+                      <div className="pt-2 flex justify-between items-center">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Status</p>
+                        <span className={clsx(
+                          "px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center",
+                          selectedPayout.status === 'Completed' ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                        )}>
+                          <span className="mr-1.5">{getStatusIcon(selectedPayout.status)}</span>
+                          {selectedPayout.status}
+                        </span>
+                      </div>
+                      <div className="pt-2 flex justify-between items-center">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Order Date</p>
+                        <p className="text-sm text-gray-700 flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                          {new Date(selectedPayout.orderDate).toLocaleString()}
+                        </p>
+                      </div>
+                      {selectedPayout.status === 'Completed' && (
+                        <div className="pt-2 flex justify-between items-center">
+                          <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Settlement Date</p>
+                          <p className="text-sm text-gray-700 flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                            {new Date(selectedPayout.settlementDate!).toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Order Details */}
+                  <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm md:col-span-2 space-y-4">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-[#c5a059]" />
+                        Order Summary
+                      </h3>
+                      <span className="text-xs font-mono text-gray-500">Order #{selectedOrder.id.slice(-6)}</span>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="max-h-48 overflow-y-auto pr-2 space-y-2">
+                        {selectedOrder.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-sm py-1 border-b border-gray-50 last:border-0">
+                            <div className="flex items-center gap-3">
+                              <span className="font-medium text-gray-900">{item.quantity}x</span>
+                              <span className="text-gray-700">{item.name}</span>
+                            </div>
+                            <span className="font-medium text-gray-900">${(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                        <span className="font-bold text-gray-900">Total Amount</span>
+                        <span className="text-xl font-bold text-[#c5a059]">${selectedOrder.totalAmount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

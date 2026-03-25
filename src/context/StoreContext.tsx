@@ -47,6 +47,7 @@ export interface Order {
   rejectionReason?: string;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
+  payoutStatus: 'Pending' | 'Completed';
   history: {
     status: OrderStatus;
     timestamp: string;
@@ -217,6 +218,7 @@ const INITIAL_ORDERS: Order[] = [
     createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
     paymentStatus: 'Pending',
     paymentMethod: 'COD',
+    payoutStatus: 'Pending',
     history: [
       { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), note: 'Order placed' }
     ]
@@ -235,6 +237,7 @@ const INITIAL_ORDERS: Order[] = [
     estimatedTime: '45 mins',
     paymentStatus: 'Paid',
     paymentMethod: 'Card',
+    payoutStatus: 'Completed',
     history: [
       { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(), note: 'Order placed' },
       { status: 'Accepted', timestamp: new Date(Date.now() - 1000 * 60 * 55).toISOString(), note: 'Order accepted. Estimated time: 45 mins' }
@@ -255,6 +258,7 @@ const INITIAL_ORDERS: Order[] = [
     estimatedTime: '20 mins',
     paymentStatus: 'Paid',
     paymentMethod: 'Online',
+    payoutStatus: 'Pending',
     history: [
       { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(), note: 'Order placed' },
       { status: 'Accepted', timestamp: new Date(Date.now() - 1000 * 60 * 85).toISOString(), note: 'Order accepted. Estimated time: 20 mins' },
@@ -275,6 +279,7 @@ const INITIAL_ORDERS: Order[] = [
     estimatedTime: '15 mins',
     paymentStatus: 'Paid',
     paymentMethod: 'Cash',
+    payoutStatus: 'Completed',
     history: [
       { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(), note: 'Order placed' },
       { status: 'Accepted', timestamp: new Date(Date.now() - 1000 * 60 * 115).toISOString(), note: 'Order accepted. Estimated time: 15 mins' },
@@ -297,6 +302,7 @@ const INITIAL_ORDERS: Order[] = [
     estimatedTime: '30 mins',
     paymentStatus: 'Paid',
     paymentMethod: 'Online',
+    payoutStatus: 'Completed',
     history: [
       { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 180).toISOString(), note: 'Order placed' },
       { status: 'Accepted', timestamp: new Date(Date.now() - 1000 * 60 * 175).toISOString(), note: 'Order accepted. Estimated time: 30 mins' },
@@ -319,9 +325,92 @@ const INITIAL_ORDERS: Order[] = [
     rejectionReason: 'Kitchen closed due to maintenance',
     paymentStatus: 'Failed',
     paymentMethod: 'Online',
+    payoutStatus: 'Pending',
     history: [
       { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 240).toISOString(), note: 'Order placed' },
       { status: 'Rejected', timestamp: new Date(Date.now() - 1000 * 60 * 235).toISOString(), note: 'Order rejected: Kitchen closed due to maintenance' }
+    ]
+  },
+  {
+    id: 'ord-129',
+    customerName: 'David Lee',
+    customerEmail: 'david@example.com',
+    customerPhone: '555-0129',
+    items: [
+      { foodId: '1', quantity: 1, name: 'Truffle Risotto', price: 24.00 },
+      { foodId: '3', quantity: 1, name: 'Caesar Salad', price: 14.00 }
+    ],
+    totalAmount: 38.00,
+    status: 'Delivered',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2 days ago
+    estimatedTime: '25 mins',
+    paymentStatus: 'Paid',
+    paymentMethod: 'Online',
+    payoutStatus: 'Completed',
+    history: [
+      { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), note: 'Order placed' },
+      { status: 'Delivered', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2 + 1000 * 60 * 30).toISOString(), note: 'Order delivered' }
+    ]
+  },
+  {
+    id: 'ord-130',
+    customerName: 'Jessica Wong',
+    customerEmail: 'jessica@example.com',
+    customerPhone: '555-0130',
+    items: [
+      { foodId: '2', quantity: 2, name: 'Wagyu Beef Burger', price: 32.00 }
+    ],
+    totalAmount: 64.00,
+    status: 'Completed',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(), // 1 day ago
+    estimatedTime: '20 mins',
+    paymentStatus: 'Paid',
+    paymentMethod: 'Card',
+    payoutStatus: 'Completed',
+    history: [
+      { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(), note: 'Order placed' },
+      { status: 'Completed', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1 + 1000 * 60 * 25).toISOString(), note: 'Order ready' }
+    ]
+  },
+  {
+    id: 'ord-131',
+    customerName: 'Robert Johnson',
+    customerEmail: 'robert@example.com',
+    customerPhone: '555-0131',
+    items: [
+      { foodId: '4', quantity: 3, name: 'Tiramisu', price: 12.00 }
+    ],
+    totalAmount: 36.00,
+    status: 'Preparing',
+    createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
+    estimatedTime: '15 mins',
+    paymentStatus: 'Paid',
+    paymentMethod: 'Online',
+    payoutStatus: 'Pending',
+    history: [
+      { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), note: 'Order placed' },
+      { status: 'Preparing', timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(), note: 'Kitchen started preparing' }
+    ]
+  },
+  {
+    id: 'ord-132',
+    customerName: 'Amanda Clark',
+    customerEmail: 'amanda@example.com',
+    customerPhone: '555-0132',
+    items: [
+      { foodId: '1', quantity: 1, name: 'Truffle Risotto', price: 24.00 },
+      { foodId: '2', quantity: 1, name: 'Wagyu Beef Burger', price: 32.00 },
+      { foodId: '5', quantity: 2, name: 'Mojito', price: 10.00 }
+    ],
+    totalAmount: 76.00,
+    status: 'Pending',
+    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(), // 5 mins ago
+    estimatedTime: '35 mins',
+    paymentStatus: 'Paid',
+    paymentMethod: 'Online',
+    payoutStatus: 'Pending',
+    history: [
+      { status: 'Pending', timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(), note: 'Order placed' }
     ]
   }
 ];

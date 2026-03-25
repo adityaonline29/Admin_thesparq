@@ -16,7 +16,7 @@ export default function Layout() {
   const navItems = [
     { path: '/dashboard/menu', label: 'Menu', icon: UtensilsCrossed },
     { path: '/dashboard/orders', label: 'Orders', icon: ShoppingBag },
-    { path: '/dashboard/transactions', label: 'Transactions', icon: DollarSign },
+    { path: '/dashboard/transactions', label: 'Payouts', icon: DollarSign },
     { path: '/dashboard/dine-in', label: 'Dine-in', icon: Armchair },
     { path: '/dashboard/offers', label: 'Offers', icon: Tag },
   ];
